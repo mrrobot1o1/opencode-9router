@@ -54,6 +54,7 @@ guesses — no localhost fallback, no local-install assumptions. Unconfigured, i
 | --- | --- | --- |
 | `baseURL` | — (required) | 9Router base URL, e.g. `https://your-router` or `http://localhost:20128` |
 | `apiKey` | — | router API key (for `/v1/*`) |
+| `password` | — | optional dashboard password — the official `9router connect` flow (see below) |
 | `timeoutMs` | `30000` | fetch timeout |
 | `connectedOnly` | `"auto"` | show only providers with **active connections** (see below) |
 | `thinkingOverrides` | `[]` | per-model level corrections (see below) |
@@ -72,9 +73,29 @@ providers are matched by their configured prefix.
 
 - works out of the box on routers that serve `/api/*` unauthenticated (local installs with
   login disabled)
-- list unreachable (e.g. hosted routers that guard `/api/*` behind the dashboard session) →
-  **fail-open**: full inventory, unchanged behavior
+- list unreachable → **fail-open**: full inventory, unchanged behavior
 - `false` disables filtering entirely
+
+### Optional: dashboard password (hosted routers)
+
+Hosted routers guard `/api/*` behind the dashboard session. When you add a `password` option,
+the plugin uses the **official remote flow** — the same one `npx 9router connect` uses:
+`POST /api/auth/login` → session cookie → read-only `/api/providers` + usage. This enables the
+connected-providers filter **and** router-wide usage stats on hosted instances. The session
+cookie lives in memory only, is bound to the configured baseURL, never logged, and is
+re-established automatically when it expires. A rejected login fails open (full list) with a
+warning, exactly like an unreachable list. Without a password, nothing changes.
+
+```jsonc
+{
+  "package": "opencode-9hub",
+  "options": {
+    "baseURL": "https://your-router.example",
+    "apiKey": "sk-…",
+    "password": "your-dashboard-password"
+  }
+}
+```
 
 The plugin uses only the public surface: your API key on `/v1/*`, and `/api/*` when the router
 itself permits it. No `~/.9router` file reads, no pasted session JWTs — undocumented coupling

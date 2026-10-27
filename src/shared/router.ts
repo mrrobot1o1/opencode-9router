@@ -8,12 +8,20 @@
 //     No ~/.9router file reads, no pasted session JWTs — undocumented coupling
 //     is not an integration path.
 
-import { createHash } from "node:crypto"
-import { existsSync, readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import path from "node:path"
+import { appendFileSync } from "node:fs"
 
 import { overridesFrom, type ModelLevelOverride } from "./levels.js"
+
+/** Optional file sink for diagnostics (both parts): OPENCODE_9HUB_DEBUG=<path>. */
+const debugFile = process.env.OPENCODE_9HUB_DEBUG
+const debug = (line: string): void => {
+  if (!debugFile) return
+  try {
+    appendFileSync(debugFile, `${new Date().toISOString()} [shared] ${line}\n`)
+  } catch {
+    // Diagnostics are best-effort.
+  }
+}
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -32,6 +40,13 @@ export interface RouterConfig {
    * otherwise. true/false force intent on/off.
    */
   connectedOnly: "auto" | boolean
+  /**
+   * Optional dashboard password — the official remote flow (`9router connect`):
+   * POST /api/auth/login → session cookie → read-only /api/providers + usage.
+   * Enables the connected-providers filter and router-wide usage on hosted
+   * routers. Absent: nothing changes (fail-open).
+   */
+  password?: string
 }
 /** Token usage aggregates, 9Router `/api/usage/stats` shape. */
 export interface ProviderUsage {
@@ -135,12 +150,17 @@ export function resolveConfig(options: Record<string, unknown> = {}): RouterConf
     options.connectedOnly === true || options.connectedOnly === false
       ? options.connectedOnly
       : "auto"
+  const password =
+    asString(options.password) ??
+    asString(process.env.OPENCODE_9ROUTER_PASSWORD) ??
+    asString(process.env.NINE_ROUTER_PASSWORD)
   return {
     baseURL,
     apiKey,
     timeoutMs,
     thinkingOverrides: overridesFrom(options.thinkingOverrides),
     connectedOnly,
+    ...(password ? { password } : {}),
   }
 }
 
@@ -150,6 +170,55 @@ function headers(config: RouterConfig, extra?: Record<string, string>): Record<s
   const out: Record<string, string> = { accept: "application/json", ...extra }
   if (config.apiKey) out["authorization"] = `Bearer ${config.apiKey}`
   return out
+}
+
+// ── Dashboard session (optional, official `9router connect` flow) ─────────
+//
+// When the user configures a dashboard password, the plugin logs in exactly
+// like the official CLI does remotely (cli/src/cli/commands/connect.js):
+// POST /api/auth/login {password} → auth_token session cookie → read-only
+// /api/* (providers + usage). The cookie lives in memory only, is bound to
+// one baseURL, never logged, and is refreshed once on 401 before failing.
+
+let sessionCookie: string | undefined
+let sessionBaseURL: string | undefined
+
+function currentCookie(config: RouterConfig): string | undefined {
+  return sessionBaseURL === config.baseURL ? sessionCookie : undefined
+}
+
+async function login(config: RouterConfig): Promise<void> {
+  const response = await fetch(`${config.baseURL}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ password: config.password }),
+    signal: AbortSignal.timeout(config.timeoutMs),
+  })
+  if (!response.ok) {
+    throw new RouterError(
+      `dashboard login failed: ${response.status} (check the password option)`,
+      response.status,
+    )
+  }
+  const setCookie =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [response.headers.get("set-cookie") ?? ""]
+  for (const entry of setCookie) {
+    const match = /(?:^|,\s*)auth_token=([^;]+)/.exec(entry)
+    if (match) {
+      sessionCookie = `auth_token=${match[1]}`
+      sessionBaseURL = config.baseURL
+      return
+    }
+  }
+  throw new RouterError("dashboard login succeeded but no session cookie was returned")
+}
+
+/** Attach the session cookie to dashboard-API requests (never to other hosts). */
+function withSession(config: RouterConfig, h: Record<string, string>): Record<string, string> {
+  const cookie = currentCookie(config)
+  return cookie ? { ...h, cookie } : h
 }
 
 export class RouterError extends Error {
@@ -167,10 +236,20 @@ export async function getJSON<T>(
   pathname: string,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(`${config.baseURL}${pathname}`, {
-    headers: headers(config),
-    signal: signal ?? AbortSignal.timeout(config.timeoutMs),
-  })
+  const fetchOnce = (): Promise<Response> =>
+    fetch(`${config.baseURL}${pathname}`, {
+      headers: withSession(config, headers(config)),
+      signal: signal ?? AbortSignal.timeout(config.timeoutMs),
+    })
+
+  let response = await fetchOnce()
+  // Session expired (or never established) on a dashboard endpoint: the
+  // official flow is one re-login and a single retry. A login failure
+  // surfaces as a normal error — callers fail open.
+  if (response.status === 401 && config.password && pathname.startsWith("/api/")) {
+    await login(config)
+    response = await fetchOnce()
+  }
   if (!response.ok) {
     throw new RouterError(`${pathname} failed: ${response.status} ${response.statusText}`, response.status)
   }
@@ -285,7 +364,7 @@ export function subscribeStats(
     controller = new AbortController()
     try {
       const response = await fetch(`${config.baseURL}/api/usage/stream`, {
-        headers: headers(config, { accept: "text/event-stream" }),
+        headers: withSession(config, headers(config, { accept: "text/event-stream" })),
         signal: controller.signal,
       })
       if (!response.ok || !response.body) {
@@ -323,10 +402,21 @@ export function subscribeStats(
       if (disposed || (error instanceof Error && error.name === "AbortError")) return
       // Dashboard-guarded routers (hosted) always answer 401/403 — retrying
       // would pin the UI in "connecting" and hide the session fallback.
-      // Latch offline instead.
+      // With a configured password, one re-login then a retry keeps the
+      // stream alive across session expiry; a rejected login latches offline.
       if (error instanceof RouterError && (error.status === 401 || error.status === 403)) {
-        handlers.onStatus?.("offline")
-        return
+        if (config.password) {
+          try {
+            await login(config)
+          } catch (loginError) {
+            debug(`stream: login failed ${loginError instanceof Error ? loginError.message : String(loginError)}`)
+            handlers.onStatus?.("offline")
+            return
+          }
+        } else {
+          handlers.onStatus?.("offline")
+          return
+        }
       }
     }
 

@@ -16,6 +16,7 @@ import type { ModelLevelOverride } from "../shared/levels.js"
 import { formatModelName } from "../shared/display.js"
 import { levelSort, splitModelID, thinkingLevels } from "../shared/levels.js"
 import { ALIAS_TO_PROVIDER } from "./alias.js"
+import { PROVIDER_TO_ALIAS } from "./provider-aliases.js"
 
 /** A registered 9Router model ready for provider injection. */
 export interface HubModel {
@@ -82,17 +83,12 @@ function variantsFrom(
 // ── Connected-providers filter ──────────────────────────────
 
 /** Free/no-auth lanes 9Router always serves, with or without a connection. */
-const FREE_ALIASES = new Set(["oc", "ollama", "ollama-local"])
-
-/** Reverse of ALIAS_TO_PROVIDER: 9Router provider id → default alias. */
-const PROVIDER_TO_ALIAS: Record<string, string> = Object.fromEntries(
-  Object.entries(ALIAS_TO_PROVIDER).map(([alias, provider]) => [provider, alias]),
-)
+const FREE_ALIASES = new Set(["oc", "mmf", "ollama", "ollama-local", "local-device"])
 
 /**
  * Aliases that currently have an active connection, per the router's own
  * `/api/providers`. A custom compatible provider serves under its configured
- * `prefix`; standard providers under their default alias.
+ * `prefix`; standard providers under their registry alias (uiAlias || alias).
  */
 export function connectedAliases(connections: readonly RouterConnection[]): Set<string> {
   const aliases = new Set<string>(FREE_ALIASES)

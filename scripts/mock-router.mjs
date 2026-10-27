@@ -5,6 +5,8 @@
 import { createServer } from "node:http"
 
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 20128)
+const MOCK_PASSWORD = "mock-password"
+const MOCK_SESSION = "mock-session-token"
 
 const MODELS = [
   { id: "kr/claude-sonnet-4.5", owned_by: "kr" },
@@ -115,8 +117,36 @@ createServer((req, res) => {
     return send(200, stats(url.searchParams.get("period") ?? "7d"))
   }
 
+  if (url.pathname === "/api/auth/login") {
+    let body = ""
+    req.on("data", (c) => (body += c))
+    req.on("end", () => {
+      let password = ""
+      try {
+        password = JSON.parse(body)?.password ?? ""
+      } catch {}
+      if (password !== MOCK_PASSWORD) return send(401, { error: "Invalid password" })
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "set-cookie": `auth_token=mock-session-token; Path=/; HttpOnly; SameSite=Lax`,
+      })
+      res.end(JSON.stringify({ success: true }))
+    })
+    return
+  }
+
   if (url.pathname === "/api/providers") {
-    return send(200, { providers: [{ id: "n1", provider: "claude", name: "Claude main", status: "ok" }, { id: "n2", provider: "kiro", name: "Kiro free", status: "ok" }] })
+    // Guarded like a hosted router: needs the dashboard session cookie.
+    const cookie = req.headers.cookie ?? ""
+    if (!cookie.includes("auth_token=")) return send(401, { error: "Unauthorized" })
+    if (!cookie.includes(MOCK_SESSION)) return send(401, { error: "Unauthorized" })
+    return send(200, {
+      connections: [
+        { id: "c1", provider: "openai-compatible-chat-xyz", name: "AG gateway", isActive: true, providerSpecificData: { prefix: "ag" } },
+        { id: "c2", provider: "kiro", name: "Kiro free", isActive: true },
+        { id: "c3", provider: "opencode", name: "stale", isActive: false },
+      ],
+    })
   }
 
   if (url.pathname === "/api/usage/stream") {
