@@ -28,25 +28,37 @@ Unlike the existing provider-registration plugins
 
 ## Install
 
+**From GitHub (works today):**
+
+```bash
+git clone https://github.com/mrrobot1o1/opencode-9hub.git ~/.config/opencode/opencode-9hub
+```
+
 ```jsonc
-// opencode.jsonc (project) or ~/.config/opencode/opencode.jsonc (global)
+// ~/.config/opencode/opencode.jsonc (global) or opencode.jsonc (project)
 {
-  "plugins": ["opencode-9hub"],
-  // optional tuning:
-  // "plugins": [{
-  //   "package": "opencode-9hub",
-  //   "options": {
-  //     "baseURL": "http://localhost:20128",     // or https://your-router
-  //     "apiKey": "{env:OPENCODE_9ROUTER_API_KEY}",
-  //     "timeoutMs": 30000
-  //   }
-  // }]
+  "plugins": [{
+    // absolute path (the config does not expand ~)
+    "package": "/home/you/.config/opencode/opencode-9hub",
+    "options": {
+      "baseURL": "http://localhost:20128",   // your 9Router
+      "apiKey": "sk-…"
+    }
+  }]
 }
 ```
 
-Environment: `OPENCODE_9ROUTER_URL` and `OPENCODE_9ROUTER_API_KEY` — same variables the
-other 9router plugins use. A `baseURL` (option or env) is **required**: the plugin never
-guesses — no localhost fallback, no local-install assumptions. Unconfigured, it stays inert.
+**From npm (once published):**
+
+```jsonc
+{ "plugins": ["opencode-9hub"] }
+```
+
+Then restart OpenCode (TUI-side changes need a full restart, not just `/reload`).
+
+Environment: `OPENCODE_9ROUTER_URL` and `OPENCODE_9ROUTER_API_KEY` work as fallbacks for
+`baseURL`/`apiKey`. A `baseURL` (option or env) is **required**: the plugin never guesses —
+no localhost fallback, no local-install assumptions. Unconfigured, it stays inert.
 
 ### Options
 
