@@ -1,0 +1,193 @@
+# opencode-9hub
+
+OpenCode V2 plugin for [9Router](https://github.com/decolua/9router) — **usage by provider in
+the session sidebar** and a **model picker with per-model thinking levels**, right inside the
+terminal UI.
+
+```
+ 9Router Usage  ●
+ today · $0.42 · 18 req · 96k tok
+ kr          ▰▰▰▰▰▰▰▱  62k tok $0.21
+ cc          ▰▰▰▰▱▱▱▱  21k tok $0.14
+ glm         ▰▰▱▱▱▱▱▱   9k tok $0.05
+ ● 1 running
+```
+
+Unlike the existing provider-registration plugins
+([vheins/opencode-9router](https://github.com/vheins/opencode-9router),
+[mdhb2/opencode-9router-plugin](https://github.com/mdhb2/opencode-9router-plugin)), 9hub is a
+**two-part plugin**:
+
+- **Server part** (`.`) — registers the `9router` provider and injects every routed model with
+  capabilities, token limits, and **thinking variants aligned to what each model actually
+  serves** (Claude 4.6 has no `xhigh`, Gemini 4 has no `minimal`, `zai` GLM is on/off only,
+  kimi is `none→max`, deepseek clamps, …). Refreshes live; keeps the last good inventory when
+  the router is unreachable.
+- **TUI part** (`./tui`) — the visible half: sidebar usage section, `/9hub` model picker,
+  `/9usage` period switcher, live "running" indicator, toasts.
+
+## Install
+
+```jsonc
+// opencode.jsonc (project) or ~/.config/opencode/opencode.jsonc (global)
+{
+  "plugins": ["opencode-9hub"],
+  // optional tuning:
+  // "plugins": [{
+  //   "package": "opencode-9hub",
+  //   "options": {
+  //     "baseURL": "http://localhost:20128",     // or https://your-router
+  //     "apiKey": "{env:OPENCODE_9ROUTER_API_KEY}",
+  //     "timeoutMs": 30000
+  //   }
+  // }]
+}
+```
+
+Environment: `OPENCODE_9ROUTER_URL` and `OPENCODE_9ROUTER_API_KEY` — same variables the
+other 9router plugins use. A `baseURL` (option or env) is **required**: the plugin never
+guesses — no localhost fallback, no local-install assumptions. Unconfigured, it stays inert.
+
+### Options
+
+| option | default | effect |
+| --- | --- | --- |
+| `baseURL` | — (required) | 9Router base URL, e.g. `https://your-router` or `http://localhost:20128` |
+| `apiKey` | — | router API key (for `/v1/*`) |
+| `timeoutMs` | `30000` | fetch timeout |
+| `connectedOnly` | `"auto"` | show only providers with **active connections** (see below) |
+| `thinkingOverrides` | `[]` | per-model level corrections (see below) |
+
+## Only connected providers
+
+A router with zero connections serves the **whole static catalog** from `/v1/models` — models
+that can't actually serve requests. (With a healthy connection list, 9Router already gates
+`/v1/models` to connected providers + free lanes + combos — there, an alias appearing at all
+means it's active.)
+
+With `connectedOnly: "auto"` (default) the plugin additionally fetches the router's connection
+list (`GET /api/providers`) and registers **only models whose provider has an active
+connection**, plus the always-on free lanes (`oc`, `ollama`) and combos. Custom compatible
+providers are matched by their configured prefix.
+
+- works out of the box on routers that serve `/api/*` unauthenticated (local installs with
+  login disabled)
+- list unreachable (e.g. hosted routers that guard `/api/*` behind the dashboard session) →
+  **fail-open**: full inventory, unchanged behavior
+- `false` disables filtering entirely
+
+The plugin uses only the public surface: your API key on `/v1/*`, and `/api/*` when the router
+itself permits it. No `~/.9router` file reads, no pasted session JWTs — undocumented coupling
+is not an integration path. (Wish-list for 9Router upstream: expose connection state on a
+public endpoint so every client can filter without credentials.)
+
+```jsonc
+{
+  "package": "opencode-9hub",
+  "options": {
+    "baseURL": "https://your-router.example",
+    "apiKey": "sk-…",
+    "connectedOnly": "auto"
+  }
+}
+```
+
+Restart OpenCode, then:
+
+- `/models` → pick any `9router/…` model (they are registered automatically), or use **`/9hub`**
+- watch the sidebar for **9Router Usage**
+- `/9usage` switches the usage period (today / 24h / 7d / 30d / 60d / all)
+
+## Never in the request path
+
+The plugin is a **registrar, not a proxy**. It registers the `9router` provider (baseURL +
+apiKey) once, and OpenCode's own HTTP client makes every chat request **directly** to your
+router. The plugin never proxies, intercepts, throttles, times out, or closes anything on the
+AI path — nothing it does can stop a running generation.
+
+All plugin timeouts (`timeoutMs`, the 60s catalog refresh) apply only to its **own background
+fetches** (model catalog, connection list, usage stats). Those fail open: an unreachable router
+keeps the last known inventory and your session keeps working.
+
+## Usage panel
+
+Primary source is 9Router's own dashboard API (`/api/usage/stats` + live SSE stream) — so, when
+the router serves it, the panel shows **all tools** routed through 9Router (Claude Code, Codex,
+Cursor, …), not just OpenCode.
+
+If the dashboard API is unreachable (e.g. a hosted router that guards `/api/*` behind login),
+the panel falls back to the current session's own usage, labeled `9Router Usage ○ session`.
+
+## Thinking levels, aligned
+
+9Router knows the exact effort set each model serves
+(`open-sse/providers/thinkingLevels.js`), but doesn't expose it over HTTP. 9hub mirrors that
+resolver and feeds it with the `capabilities` block `/v1/models` already emits
+(`reasoning`, `thinkingFormat`, `thinkingCanDisable`):
+
+| family | levels offered |
+| --- | --- |
+| gpt-5.x / o-series | none, minimal, low, medium, high, xhigh |
+| claude 4.6 | none, low, medium, high, max — **no xhigh** |
+| gemini 4 | low, medium, high — **no minimal, no off** |
+| gemini 3 | minimal, low, medium, high |
+| glm (zai) | none, thinking |
+| kimi | none, low, medium, high, max |
+| deepseek v4 | none, low, medium, high, xhigh, max (per-model clamps) |
+| minimax | none, thinking |
+
+`/9hub` → pick a model → pick a thinking level from **only the levels that model serves** →
+the session switches live (`POST /api/session/:id/model`). Variants are registered up-front by
+the server part, so a selection can never produce an unknown-variant failure on the next
+prompt.
+
+## Development
+
+```sh
+npm install
+npm run check          # typecheck
+npm run mock           # mock 9router on :20128 (mutating stats, SSE)
+node scripts/mock-router.mjs 20129   # custom port
+```
+
+Local dev against a real OpenCode install — point your config at this directory:
+
+```jsonc
+{ "plugins": ["/absolute/path/to/opencode-9hub"] }
+```
+
+or symlink it into `.opencode/plugins/opencode-9hub`. `opencode models 9router --print-logs`
+shows discovery logs; the TUI part needs a running `opencode` TUI session.
+
+The API key/URL above also work against hosted 9Router instances; note hosted instances
+usually guard `/api/*` behind login, so the sidebar falls back to session usage there.
+
+## Architecture
+
+```
+src/
+  index.ts            server part: Plugin.define → provider/model transforms + refresh loop
+  server/
+    register.ts       /v1/models → Model.Info (caps, limits, variants)
+    alias.ts          alias → 9Router provider id (for pattern overrides)
+  tui.tsx             TUI part: sidebar slot + commands
+  tui/
+    store.ts          usage store (period fetch + SSE, persisted prefs)
+    sidebar.tsx       "9Router Usage" sidebar section (+ session fallback)
+    picker.tsx        /9hub model + thinking-level dialogs → session.switchModel
+  shared/
+    router.ts         9Router client (CLI token, /v1 + /api, SSE)
+    levels.ts         thinking-level resolver (mirror of 9Router's)
+    display.ts        naming/formatting
+```
+
+## Roadmap
+
+- [ ] Add-provider dialog (`POST /api/providers` for key/free providers; OAuth → dashboard deep-link)
+- [ ] Fullscreen usage dashboard (`session.panel`): byModel / byAccount tables
+- [ ] Model detail view: context window, cost, capabilities
+- [ ] Publish to npm
+
+## License
+
+MIT
