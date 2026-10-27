@@ -12,7 +12,7 @@ import type { UsageStore } from "./store"
 
 const BAR_WIDTH = 8
 const MAX_ROWS = 6
-const NAME_WIDTH = 12
+const NAME_WIDTH = 14
 
 interface ProviderRow {
   id: string

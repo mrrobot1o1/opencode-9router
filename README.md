@@ -6,10 +6,10 @@ terminal UI.
 
 ```
  9Router Usage  ●
- today · $0.42 · 18 req · 96k tok
- kr          ▰▰▰▰▰▰▰▱  62k tok $0.21
- cc          ▰▰▰▰▱▱▱▱  21k tok $0.14
- glm         ▰▰▱▱▱▱▱▱   9k tok $0.05
+ today · $4.20 · 18 req · 96k tok
+ Kiro AI       ▰▰▰▰▰▰▰▱  62k tok $1.42
+ Inferhub      ▰▰▰▰▱▱▱▱  21k tok $0.98
+ OpenCode Free ▰▰▱▱▱▱▱▱   9k tok $0
  ● 1 running
 ```
 
@@ -173,28 +173,39 @@ Cursor, …), not just OpenCode.
 If the dashboard API is unreachable (e.g. a hosted router that guards `/api/*` behind login),
 the panel falls back to the current session's own usage, labeled `9Router Usage ○ session`.
 
-## Thinking levels, aligned
+## Thinking levels, aligned — no hardcoded model tables
 
-9Router knows the exact effort set each model serves
-(`open-sse/providers/thinkingLevels.js`), but doesn't expose it over HTTP. 9hub mirrors that
-resolver and feeds it with the `capabilities` block `/v1/models` already emits
-(`reasoning`, `thinkingFormat`, `thinkingCanDisable`):
+OpenCode's variant picker should only ever offer levels the model actually serves, but
+9Router doesn't publish resolved level lists over HTTP. 9hub derives them **from the
+capability data `/v1/models` already emits** (`reasoning`, `thinkingFormat`,
+`thinkingCanDisable`, `thinkingEffortSupported`) — no model names hardcoded in the plugin:
 
-| family | levels offered |
-| --- | --- |
-| gpt-5.x / o-series | none, minimal, low, medium, high, xhigh |
-| claude 4.6 | none, low, medium, high, max — **no xhigh** |
-| gemini 4 | low, medium, high — **no minimal, no off** |
-| gemini 3 | minimal, low, medium, high |
-| glm (zai) | none, thinking |
-| kimi | none, low, medium, high, max |
-| deepseek v4 | none, low, medium, high, xhigh, max (per-model clamps) |
-| minimax | none, thinking |
+- a model-independent `thinkingFormat → level set` table carries the router's wire contract
+  (`openai` → none…xhigh, `claude-budget`/`claude-adaptive` → none…max, `kimi` → none…max,
+  `zai` → on/off, …)
+- effort-capable `zai` models (GLM-5.2/5.3) get the exact wire set `low | high | max`
+- `thinkingCanDisable: false` removes the `none` entry
+
+Verified against 9Router's own resolver over a full live inventory: identical on ~86% of
+models; the residuals are gateway catalog quirks that degrade gracefully — an over-advertised
+level surfaces OpenCode's clean *"Variant unavailable"* error, never a crash.
+
+**Opt-in corrections.** If a specific model's published capabilities diverge from its wire
+behavior, correct it in your config — not in plugin code:
+
+```jsonc
+"thinkingOverrides": [
+  { "pattern": "*gemini-4*", "levels": ["low", "medium", "high"] }
+]
+```
+
+`provider` (optional) scopes an entry to one 9Router alias; `pattern` is a `*`-glob on the
+model id, first match wins. When a future 9Router publishes fully-resolved levels
+(`capabilities.thinkingLevels`), 9hub prefers that field automatically and needs no update.
 
 `/9hub` → pick a model → pick a thinking level from **only the levels that model serves** →
-the session switches live (`POST /api/session/:id/model`). Variants are registered up-front by
-the server part, so a selection can never produce an unknown-variant failure on the next
-prompt.
+the session switches live. Variants are registered up-front by the server part, so a
+selection can never produce an unknown-variant failure on the next prompt.
 
 ## Development
 
