@@ -28,18 +28,13 @@ Unlike the existing provider-registration plugins
 
 ## Install
 
-**From GitHub (works today):**
-
-```bash
-git clone https://github.com/mrrobot1o1/opencode-9hub.git ~/.config/opencode/opencode-9hub
-```
+**From npm:**
 
 ```jsonc
 // ~/.config/opencode/opencode.jsonc (global) or opencode.jsonc (project)
 {
   "plugins": [{
-    // absolute path (the config does not expand ~)
-    "package": "/home/you/.config/opencode/opencode-9hub",
+    "package": "opencode-9hub",
     "options": {
       "baseURL": "http://localhost:20128",   // your 9Router
       "apiKey": "sk-…"
@@ -48,10 +43,20 @@ git clone https://github.com/mrrobot1o1/opencode-9hub.git ~/.config/opencode/ope
 }
 ```
 
-**From npm (once published):**
+**From GitHub (development):**
+
+```bash
+git clone https://github.com/mrrobot1o1/opencode-9hub.git ~/.config/opencode/opencode-9hub
+```
 
 ```jsonc
-{ "plugins": ["opencode-9hub"] }
+{
+  "plugins": [{
+    // absolute path (the config does not expand ~)
+    "package": "/home/you/.config/opencode/opencode-9hub",
+    "options": { "baseURL": "http://localhost:20128", "apiKey": "sk-…" }
+  }]
+}
 ```
 
 Then restart OpenCode (TUI-side changes need a full restart, not just `/reload`).

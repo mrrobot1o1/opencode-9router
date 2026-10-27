@@ -24,6 +24,7 @@
     "src",
     "server.ts",
     "tui.tsx",
+    "scripts",
     "README.md",
     "LICENSE"
   ],
