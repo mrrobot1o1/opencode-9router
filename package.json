@@ -1,8 +1,8 @@
 {
   "name": "opencode-9hub",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "OpenCode TUI companion for 9Router — usage by provider in the session sidebar, model picker with per-model thinking levels, and provider management dialogs.",
-  "author": "stol",
+  "author": "mrrobot1o1 <mrrobot1o1@outlook.in>",
   "keywords": [
     "opencode",
     "opencode-plugin",
