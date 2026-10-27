@@ -12,8 +12,8 @@ import { appendFileSync } from "node:fs"
 
 import { overridesFrom, type ModelLevelOverride } from "./levels.js"
 
-/** Optional file sink for diagnostics (both parts): OPENCODE_9HUB_DEBUG=<path>. */
-const debugFile = process.env.OPENCODE_9HUB_DEBUG
+/** Optional file sink for diagnostics (both parts): OPENCODE_9ROUTER_DEBUG=<path>. */
+const debugFile = process.env.OPENCODE_9ROUTER_DEBUG
 const debug = (line: string): void => {
   if (!debugFile) return
   try {

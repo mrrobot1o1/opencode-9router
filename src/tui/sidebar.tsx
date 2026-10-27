@@ -190,7 +190,7 @@ export function SidebarUsage(props: { context: Plugin.Context; store: UsageStore
           </For>
           <Show when={hidden() > 0}>
             <text fg={theme.text.faint} wrapMode="none">
-              +{hidden()} more in /9hub
+              +{hidden()} more in /9router
             </text>
           </Show>
           <Show when={running() > 0}>

@@ -12,7 +12,7 @@ import { openModelPicker } from "./tui/picker.js"
 import { debug } from "./tui/debug.js"
 
 export default Plugin.define({
-  id: "9hub.tui",
+  id: "9router.tui",
   async setup(context) {
     let store: UsageStore
     try {
@@ -25,7 +25,7 @@ export default Plugin.define({
       debug(`setup:crash ${error instanceof Error ? (error.stack ?? message) : message}`)
       try {
         context.ui.toast.show({
-          title: "9hub failed to start",
+          title: "9router failed to start",
           message,
           variant: "error",
           duration: 8000,
@@ -48,16 +48,16 @@ export default Plugin.define({
       priority: 10,
       commands: [
         {
-          id: "9hub.models",
+          id: "9router.models",
           title: "9Router: Models",
           group: "9Router",
           palette: true,
           suggested: true,
-          slash: { name: "9hub", aliases: ["9models"] },
+          slash: { name: "9router", aliases: ["9models"] },
           run: () => void openModelPicker(context, store),
         },
         {
-          id: "9hub.usage.period",
+          id: "9router.usage.period",
           title: "9Router: Usage period",
           group: "9Router",
           palette: true,

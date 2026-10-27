@@ -1,4 +1,4 @@
-# opencode-9hub
+# opencode-9router
 
 OpenCode V2 plugin for [9Router](https://github.com/decolua/9router) — **usage by provider in
 the session sidebar** and a **model picker with per-model thinking levels**, right inside the
@@ -13,20 +13,20 @@ terminal UI.
  ● 1 running
 ```
 
-9hub is a **two-part plugin**:
+opencode-9router is a **two-part plugin**:
 
 - **Server part** (`.`) — registers the `9router` provider and injects every routed model with
   capabilities, token limits, and **thinking variants aligned to what each model actually
   serves** (Claude 4.6 has no `xhigh`, Gemini 4 has no `minimal`, `zai` GLM is on/off only,
   kimi is `none→max`, deepseek clamps, …). Refreshes live; keeps the last good inventory when
   the router is unreachable.
-- **TUI part** (`./tui`) — the visible half: sidebar usage section, `/9hub` model picker,
+- **TUI part** (`./tui`) — the visible half: sidebar usage section, `/9router` model picker,
   `/9usage` period switcher, live "running" indicator, toasts.
 
 ## Install
 
 ```bash
-opencode plugin add opencode-9hub
+opencode plugin add opencode-9router
 ```
 
 Then edit your global config — `~/.config/opencode/opencode.jsonc` — to point it at your
@@ -36,7 +36,7 @@ Then edit your global config — `~/.config/opencode/opencode.jsonc` — to poin
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [{
-    "package": "opencode-9hub",
+    "package": "opencode-9router",
     "options": {
       "baseURL": "http://localhost:20128",        // your 9Router URL
       "apiKey": "sk-your-router-api-key",          // from the 9Router dashboard
@@ -52,13 +52,13 @@ is set, the sidebar shows setup guidance and the plugin stays inert — nothing 
 **Development (from a clone):**
 
 ```bash
-git clone https://github.com/mrrobot1o1/opencode-9hub.git
+git clone https://github.com/mrrobot1o1/opencode-9router.git
 ```
 
 ```jsonc
 {
   "plugins": [{
-    "package": "/absolute/path/to/opencode-9hub",   // the config does not expand ~
+    "package": "/absolute/path/to/opencode-9router",   // the config does not expand ~
     "options": { "baseURL": "http://localhost:20128", "apiKey": "sk-…" }
   }]
 }
@@ -108,7 +108,7 @@ warning, exactly like an unreachable list. Without a password, nothing changes.
 
 ```jsonc
 {
-  "package": "opencode-9hub",
+  "package": "opencode-9router",
   "options": {
     "baseURL": "https://your-router.example",
     "apiKey": "sk-…",
@@ -124,7 +124,7 @@ public endpoint so every client can filter without credentials.)
 
 ```jsonc
 {
-  "package": "opencode-9hub",
+  "package": "opencode-9router",
   "options": {
     "baseURL": "https://your-router.example",
     "apiKey": "sk-…",
@@ -135,7 +135,7 @@ public endpoint so every client can filter without credentials.)
 
 Restart OpenCode, then:
 
-- pick any `9router/…` model in the model switcher (they are registered automatically), or use **`/9hub`**
+- pick any `9router/…` model in the model switcher (they are registered automatically), or use **`/9router`**
 - watch the sidebar for **9Router Usage**
 - `/9usage` switches the usage period (today / 24h / 7d / 30d / 60d / all)
 
@@ -176,7 +176,7 @@ the panel falls back to the current session's own usage, labeled `9Router Usage 
 ## Thinking levels, aligned — no hardcoded model tables
 
 OpenCode's variant picker should only ever offer levels the model actually serves, but
-9Router doesn't publish resolved level lists over HTTP. 9hub derives them **from the
+9Router doesn't publish resolved level lists over HTTP. opencode-9router derives them **from the
 capability data `/v1/models` already emits** (`reasoning`, `thinkingFormat`,
 `thinkingCanDisable`, `thinkingEffortSupported`) — no model names hardcoded in the plugin:
 
@@ -201,24 +201,24 @@ behavior, correct it in your config — not in plugin code:
 
 `provider` (optional) scopes an entry to one 9Router alias; `pattern` is a `*`-glob on the
 model id, first match wins. When a future 9Router publishes fully-resolved levels
-(`capabilities.thinkingLevels`), 9hub prefers that field automatically and needs no update.
+(`capabilities.thinkingLevels`), the plugin prefers that field automatically and needs no update.
 
-`/9hub` → pick a model → pick a thinking level from **only the levels that model serves** →
+`/9router` → pick a model → pick a thinking level from **only the levels that model serves** →
 the session switches live. Variants are registered up-front by the server part, so a
 selection can never produce an unknown-variant failure on the next prompt.
 
 ## Development
 
 ```sh
-git clone https://github.com/mrrobot1o1/opencode-9hub.git
-cd opencode-9hub
+git clone https://github.com/mrrobot1o1/opencode-9router.git
+cd opencode-9router
 npm install
 npm run check          # typecheck
 npm run mock           # mock 9router on :20128 (mutating stats, SSE, guarded /api)
 ```
 
 Point a local OpenCode at the clone (see the development snippet under Install), restart the
-TUI, and `/9hub` lists the mock inventory. `OPENCODE_9HUB_DEBUG=<file>` appends diagnostics
+TUI, and `/9router` lists the mock inventory. `OPENCODE_9ROUTER_DEBUG=<file>` appends diagnostics
 from both parts — plugin console output is invisible in `--print-logs`.
 
 Hosted routers: the same `baseURL`/`apiKey` work for `/v1/*`; add `password` (dashboard
@@ -237,9 +237,9 @@ src/
   tui/
     store.ts          usage store (period fetch + SSE, persisted prefs, manual reconnect)
     sidebar.tsx       "9Router Usage" sidebar section (+ session fallback, crash boundary)
-    picker.tsx        /9hub model + thinking-level dialogs → session.switchModel
+    picker.tsx        /9router model + thinking-level dialogs → session.switchModel
     config-source.ts  TUI options self-serve (the relay drops options → read config from disk)
-    debug.ts          OPENCODE_9HUB_DEBUG file sink
+    debug.ts          OPENCODE_9ROUTER_DEBUG file sink
   shared/
     router.ts         9Router client (/v1 + /api, optional dashboard login, SSE)
     levels.ts         capability-driven thinking-level resolver (+ user overrides)

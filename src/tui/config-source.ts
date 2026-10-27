@@ -9,7 +9,7 @@ import { basename, join } from "node:path"
 import { homedir } from "node:os"
 import { debug } from "./debug.js"
 
-const PACKAGE_NAME = "opencode-9hub"
+const PACKAGE_NAME = "opencode-9router"
 
 /**
  * Minimal string-aware JSONC → object: strips line comments and block

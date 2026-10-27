@@ -1,4 +1,4 @@
-// Mock 9Router for local development: serves the endpoints opencode-9hub
+// Mock 9Router for local development: serves the endpoints opencode-9router
 // consumes — /v1/models, /v1/models/info, /api/usage/stats, /api/usage/stream
 // (SSE), /api/providers. Run: node scripts/mock-router.mjs [port]
 

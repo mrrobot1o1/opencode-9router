@@ -10,7 +10,7 @@ import { resolveConfig, type RouterConfig, type RouterConnection, type RouterMod
 import { discoverInventory, filterConnected, toModelInfos } from "./server/register.js"
 
 /** Durable storage key for the last discovered inventory. */
-const INVENTORY_KEY = "9hub:inventory"
+const INVENTORY_KEY = "9router:inventory"
 
 interface CachedInventory {
   savedAt: number
@@ -35,8 +35,8 @@ const PROVIDER_ID = "9router"
 const DISPLAY_NAME = "9Router"
 const OPENAI_COMPATIBLE = "@opencode/ai/providers/openai-compatible"
 
-/** Optional file sink for diagnostics: OPENCODE_9HUB_DEBUG=<path>. */
-const debugFile = process.env.OPENCODE_9HUB_DEBUG
+/** Optional file sink for diagnostics: OPENCODE_9ROUTER_DEBUG=<path>. */
+const debugFile = process.env.OPENCODE_9ROUTER_DEBUG
 const debug = (line: string): void => {
   if (!debugFile) return
   try {
@@ -86,10 +86,10 @@ function buildProviderInfo(config: RouterConfig): Provider.Info {
 }
 
 export default Plugin.define({
-  id: "9hub",
+  id: "9router",
   async setup(ctx) {
     const log = (level: "info" | "warn" | "error", message: string) => {
-      const line = `[9hub] ${message}`
+      const line = `[9router] ${message}`
       debug(line)
       if (level === "error") console.error(line)
       else if (level === "warn") console.warn(line)

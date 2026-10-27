@@ -74,7 +74,7 @@ async function resolveTuiConfig(context: Plugin.Context): Promise<RouterConfig> 
       if (typeof entry !== "object" || entry === null) continue
       const record = entry as Record<string, unknown>
       const target = typeof record.package === "string" ? record.package : ""
-      if (!target.endsWith("opencode-9hub")) continue
+      if (!target.endsWith("opencode-9router")) continue
       const options = (record.options ?? {}) as Record<string, unknown>
       debug(`store:config-fallback matched target=${target} options=${Object.keys(options).join(",") || "none"}`)
       return resolveConfig(options)
