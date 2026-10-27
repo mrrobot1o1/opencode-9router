@@ -4,7 +4,10 @@
 import { createSignal } from "solid-js"
 import type { Plugin } from "@opencode/plugin/tui"
 import {
+  fetchConnections,
+  fetchProviderNames,
   fetchStats,
+  providerNamesFrom,
   resolveConfig,
   subscribeStats,
   USAGE_PERIODS,
@@ -12,8 +15,14 @@ import {
   type RouterStats,
   type UsagePeriod,
 } from "../shared/router.js"
+import type { ProviderNames } from "../shared/display.js"
+import { PROVIDER_TO_ALIAS } from "../shared/provider-aliases.js"
 import { debug } from "./debug.js"
 import { loadPluginOptionsFromDisk } from "./config-source.js"
+
+/** Self-identification: the provider id and name this plugin registers as. */
+const PROVIDER_ID = "9router"
+const DISPLAY_NAME = "9Router"
 
 export type ConnectionStatus = "connecting" | "live" | "offline"
 
@@ -30,6 +39,8 @@ export interface UsageStore {
   /** Number of models currently registered by the server part (0 = not ready). */
   modelCount(): number
   setModelCount(count: number): void
+  /** Dynamically resolved provider display names (id or alias → name). */
+  providerName(key: string): string
   /** Stops the SSE subscription and pending fetches. */
   stop(): void
   /** Re-runs the stats fetch and the SSE subscription (manual reconnect). */
@@ -81,6 +92,32 @@ export async function createUsageStore(context: Plugin.Context): Promise<UsageSt
   const [stats, setStats] = createSignal<RouterStats | undefined>(undefined)
   const [live, setLive] = createSignal<RouterStats | undefined>(undefined)
   const [modelCount, setModelCount] = createSignal(0)
+  const [names, setNames] = createSignal<ProviderNames>({})
+
+  // Provider display names resolve dynamically from the router (usage
+  // providers + connections); unknown keys pass through as-is. Our own
+  // registered provider id is self-identification, not router vocabulary.
+  const providerName = (key: string): string =>
+    key === PROVIDER_ID ? DISPLAY_NAME : (names() as Record<string, string>)[key] ?? key
+  if (configured) {
+    void (async () => {
+      try {
+        const [usageNames, connections] = await Promise.all([
+          fetchProviderNames(config).catch(() => ({})),
+          fetchConnections(config).catch(() => []),
+        ])
+        const merged = providerNamesFrom(
+          usageNames,
+          connections,
+          (id) => PROVIDER_TO_ALIAS[id] ?? id,
+        )
+        debug(`names:resolved ${Object.keys(merged).length} entries`)
+        setNames(merged)
+      } catch {
+        // Names are cosmetic — raw keys are the honest fallback.
+      }
+    })()
+  }
 
   const [preferences, updatePreferences] = context.storage.store<Preferences>("usage", {
     initial: { period: "7d", collapsed: false },
@@ -145,6 +182,7 @@ export async function createUsageStore(context: Plugin.Context): Promise<UsageSt
     toggleCollapsed,
     modelCount,
     setModelCount,
+    providerName,
     stop: () => subscription?.stop(),
     restart: () => {
       debug("store:restart manual reconnect")

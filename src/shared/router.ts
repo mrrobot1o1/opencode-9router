@@ -323,6 +323,85 @@ export async function fetchConnections(
 }
 
 /**
+ * `GET /api/usage/providers` — the router's own provider id → display-name
+ * resolution (custom gateways get user-chosen node names, standard providers
+ * their catalog names). Only providers with usage history appear; merge with
+ * connection names for full coverage.
+ */
+export async function fetchProviderNames(
+  config: RouterConfig,
+  signal?: AbortSignal,
+): Promise<Record<string, string>> {
+  const data = await getJSON<{ providers?: Array<{ id?: string; name?: string }> }>(
+    config,
+    "/api/usage/providers",
+    signal,
+  )
+  const names: Record<string, string> = {}
+  for (const entry of data?.providers ?? []) {
+    if (typeof entry?.id === "string" && typeof entry?.name === "string" && entry.name.length > 0) {
+      names[entry.id] = entry.name
+    }
+  }
+  return names
+}
+
+/**
+ * Strip control characters (C0/C1, including ANSI escape sequences) from
+ * router-supplied display names before they reach the terminal — mirrors the
+ * official 9Router CLI's terminal-escape-injection defense. Ordinary
+ * punctuation — quotes, `!`, `&`, unicode — passes through untouched.
+ */
+function sanitizeName(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  return name.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim()
+}
+
+/**
+ * Build the full display-name map: usage-provider names + connection names.
+ * `aliasOf` maps a provider id to its output alias (structural vocabulary —
+ * the registry-derived map), so names keyed by provider ids (`kiro`) also
+ * resolve model-id aliases (`kr/…`). Custom compatible providers prefer
+ * their **node name** (`providerSpecificData.nodeName` — the name the user
+ * gave the provider, e.g. "Inferhub"), then the connection label, and are
+ * keyed by BOTH their output prefix and provider id. Inactive connections
+ * contribute nothing. Names themselves are never hardcoded.
+ */
+export function providerNamesFrom(
+  usageNames: Readonly<Record<string, string>>,
+  connections: readonly RouterConnection[],
+  aliasOf: (providerId: string) => string = (id) => id,
+): Record<string, string> {
+  const names: Record<string, string> = {}
+  const set = (key: string, name: string): void => {
+    const clean = sanitizeName(name)
+    if (key.length === 0 || clean.length === 0 || names[key]) return
+    names[key] = clean
+  }
+  for (const [id, name] of Object.entries(usageNames)) {
+    set(id, name)
+    set(aliasOf(id), name)
+  }
+  for (const connection of connections) {
+    if (connection.isActive === false) continue
+    const provider = typeof connection.provider === "string" ? connection.provider : undefined
+    if (!provider) continue
+    const psd = connection.providerSpecificData
+    const nodeName = typeof psd?.nodeName === "string" ? psd.nodeName : ""
+    const connectionName = typeof connection.name === "string" ? connection.name : ""
+    // Custom compatible: the node name is the provider's identity; the
+    // connection label is per-connection (one node may have several).
+    const prefix = typeof psd?.prefix === "string" ? psd.prefix.trim() : ""
+    const name = prefix ? nodeName || connectionName : connectionName
+    if (!name) continue
+    set(prefix, name)
+    set(provider, name)
+    set(aliasOf(provider), name)
+  }
+  return names
+}
+
+/**
  * `POST /api/providers` — connect an API-key / free-tier / compatible provider.
  * OAuth-based providers must be connected through the 9Router dashboard.
  */

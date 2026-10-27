@@ -119,6 +119,20 @@ Restart OpenCode, then:
 - watch the sidebar for **9Router Usage**
 - `/9usage` switches the usage period (today / 24h / 7d / 30d / 60d / all)
 
+## Provider names — dynamic, never hardcoded
+
+Categories, model names, and usage rows show real provider names resolved from the router
+itself: `GET /api/usage/providers` (the router's own id → name resolution), connection records
+(custom gateways use their **node name** — the name you gave the provider, e.g. `inf` →
+"Inferhub" — then the connection label), bridged to model-id aliases via the registry alias
+map. Names with quotes, `!`, `&`, unicode, or `//` are handled everywhere, and control
+characters (ANSI escapes) are stripped before anything reaches the terminal. When the lists
+are unreachable, keys pass through as-is — nothing is invented.
+
+The usage bar is **scoped to 9Router**: the session fallback counts only `9router` models,
+and the plugin never touches providers you configured yourself — every registration write
+targets the `9router` provider id only.
+
 ## Never in the request path
 
 The plugin is a **registrar, not a proxy**. It registers the `9router` provider (baseURL +

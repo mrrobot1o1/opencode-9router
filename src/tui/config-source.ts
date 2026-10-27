@@ -11,14 +11,64 @@ import { debug } from "./debug.js"
 
 const PACKAGE_NAME = "opencode-9hub"
 
-/** Minimal JSONC → object: strips comments and trailing commas. */
+/**
+ * Minimal string-aware JSONC → object: strips line comments and block
+ * comments plus trailing commas **outside strings only**. A regex-based
+ * strip would corrupt values containing slash-slash or slash-star sequences
+ * (passwords like "Pa//ss", URLs, names).
+ */
 function parseLooseJSONC(raw: string): Record<string, unknown> | undefined {
-  const stripped = raw
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:"'\\])\/\/.*$/gm, "$1")
-    .replace(/,(\s*[}\]])/g, "$1")
+  let out = ""
+  let index = 0
+  const length = raw.length
+  let inString = false
+
+  while (index < length) {
+    const char = raw[index]!
+
+    if (inString) {
+      // Inside a string: only an unescaped quote ends it. Everything else,
+      // including `//` or `/*` sequences, is literal value data.
+      out += char
+      if (char === "\\") {
+        // Keep the escape pair together so \" doesn't end the string.
+        if (index + 1 < length) out += raw[index + 1]!
+        index += 2
+        continue
+      }
+      if (char === '"') inString = false
+      index += 1
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      out += char
+      index += 1
+      continue
+    }
+
+    // Line comment (only outside strings).
+    if (char === "/" && raw[index + 1] === "/") {
+      while (index < length && raw[index] !== "\n") index += 1
+      continue
+    }
+    // Block comment (only outside strings).
+    if (char === "/" && raw[index + 1] === "*") {
+      const end = raw.indexOf("*/", index + 2)
+      index = end === -1 ? length : end + 2
+      continue
+    }
+
+    out += char
+    index += 1
+  }
+
+  // Trailing commas before } or ] — outside strings by construction, since
+  // string content was copied verbatim above.
+  const json = out.replace(/,(\s*[}\]])/g, "$1")
   try {
-    const parsed = JSON.parse(stripped)
+    const parsed = JSON.parse(json)
     return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : undefined
   } catch {
     return undefined

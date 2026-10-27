@@ -18,6 +18,8 @@ interface CachedInventory {
   raw: RouterModel[]
   /** Last known connections list — re-applies the connected-only filter on boot. */
   connections?: RouterConnection[]
+  /** Last known provider display names (dynamic, from the router). */
+  names?: Record<string, string>
 }
 
 /** JSON-compatible view of CachedInventory for the storage domain. */
@@ -124,7 +126,10 @@ export default Plugin.define({
         // Boot-time filter uses the cached connections list; the background
         // refresh re-fetches it and reloads when the filtered set changes.
         const boot = filterConnected(cached.raw, cached.connections, config.connectedOnly)
-        captured = { info: buildProviderInfo(config), models: toModelInfos(PROVIDER_ID, boot, config.thinkingOverrides) }
+        captured = {
+          info: buildProviderInfo(config),
+          models: toModelInfos(PROVIDER_ID, boot, config.thinkingOverrides, cached.names),
+        }
         log("info", `loaded ${boot.length} models from cache (${cached.baseURL}${boot.length !== cached.raw.length ? `, filtered from ${cached.raw.length}` : ""})`)
       }
     } catch (error) {
@@ -149,6 +154,7 @@ export default Plugin.define({
           baseURL: config.baseURL,
           raw: inventory.raw,
           ...(inventory.connections !== undefined ? { connections: inventory.connections } : {}),
+          ...(inventory.names !== undefined ? { names: inventory.names } : {}),
         }
         await ctx.storage.set(INVENTORY_KEY, JSON.parse(JSON.stringify(payload)))
       } catch (error) {

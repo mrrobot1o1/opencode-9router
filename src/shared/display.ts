@@ -1,120 +1,42 @@
 // Display helpers shared by the server and TUI parts: routed-id naming,
-// alias display names, token/cost formatting.
+// provider display names, token/cost formatting.
+//
+// Provider names are NEVER hardcoded — the router knows them better than any
+// plugin could. They resolve dynamically from (in order):
+//   1. `GET /api/usage/providers` — the router's own id → display-name map
+//      (custom gateways get the user-chosen node name, e.g. "Inferhub";
+//      standard providers get their catalog names, e.g. "Kiro AI")
+//   2. `/api/providers` connections — names for connected custom compatibles,
+//      keyed by their prefix (model-id alias) and provider id
+//   3. the raw key as-is (honest fallback when /api/* is unreachable)
 
 import { splitModelID, stripThinkingSuffix } from "./levels.js"
 
-/** Known 9Router aliases → display names (subset of the router registry). */
-export const ALIAS_DISPLAY: Record<string, string> = {
-  cc: "Claude Code",
-  cx: "Codex",
-  gh: "GitHub Copilot",
-  kr: "Kiro AI",
-  oc: "OpenCode Free",
-  ocz: "OpenCode Zen",
-  ag: "Antigravity",
-  vertex: "Vertex AI",
-  "vertex-partner": "Vertex Partner",
-  glm: "GLM",
-  "glm-cn": "GLM CN",
-  minimax: "MiniMax",
-  mm: "MiniMax Code",
-  mmg: "MiniMax Global",
-  kimi: "Kimi",
-  cu: "Cursor",
-  gc: "Gemini CLI",
-  gemini: "Gemini",
-  if: "iFlow",
-  qd: "Qoder",
-  openrouter: "OpenRouter",
-  deepseek: "DeepSeek",
-  groq: "Groq",
-  xai: "xAI",
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  bedrock: "Bedrock",
-  br: "Bedrock",
-  "brx": "Bedrock xAI",
-  azure: "Azure",
-  chutes: "Chutes",
-  cerebras: "Cerebras",
-  samba: "SambaNova",
-  siliconflow: "SiliconFlow",
-  together: "Together",
-  fireworks: "Fireworks",
-  hyperbolic: "Hyperbolic",
-  nebius: "Nebius",
-  featherless: "Featherless",
-  mistral: "Mistral",
-  nvidia: "NVIDIA",
-  ollama: "Ollama",
-  tr: "Trae",
-  ws: "Windsurf",
-  cl: "Cline",
-  zd: "Zed",
-  dv: "Devin CLI",
-  gcli: "Grok CLI",
-  cbcn: "CodeBuddy CN",
-  cbai: "CodeBuddy Intl",
-  kc: "Kilo Code",
-  kgw: "Kilo Gateway",
-  kimchi: "Kimchi",
-  bai: "Baidu",
-  baidu: "Baidu",
-  qianfan: "Qianfan",
-  volcengine: "Volcengine",
-  "volcengine-ark": "Volcengine Ark",
-  byteplus: "BytePlus",
-  hunyuan: "Hunyuan",
-  tencent: "Tencent",
-  sensenova: "SenseNova",
-  alims: "Alims",
-  "alims-intl": "Alims Intl",
-  alicode: "AliCode",
-  "alicode-intl": "AliCode Intl",
-  alitp: "AliTP",
-  "alitp-intl": "AliTP Intl",
-  mmf: "MiMo Free",
-  "xiaomi-mimo": "Xiaomi MiMo",
-  "opencode-go": "OpenCode Go",
-  "chatgpt-web": "ChatGPT Web",
-  "gemini-web": "Gemini Web",
-  "grok-web": "Grok Web",
-  "deepseek-web": "DeepSeek Web",
-  perplexity: "Perplexity",
-  af: "API Airforce",
-  llm7: "LLM7",
-  blackbox: "Blackbox",
-  v1m: "V1M",
-  dahl: "Dahl",
-  trae: "Trae",
-  uc: "UC Web",
-  muse: "Muse",
-  mux: "Muse",
-  poolside: "Poolside",
-  tokenrouter: "TokenRouter",
-  tokenharbor: "TokenHarbor",
-  xquik: "XQuik",
-  bq: "Bazaarlink",
-  bzl: "Bazaarlink",
-  jina: "Jina",
-}
+/** Dynamically resolved provider names: stats provider id or model alias → name. */
+export type ProviderNames = Readonly<Record<string, string>>
 
-/** 9Router stats provider ids are provider-node ids or aliases; display what we know. */
-export function providerDisplayName(provider: string): string {
+/**
+ * Display name for a provider key: a usage-stats provider id
+ * (`openai-compatible-chat-…`, `kiro`) or a model-id alias (`kr`, `inf`).
+ * Unknown keys pass through unchanged.
+ */
+export function providerDisplayName(provider: string, names?: ProviderNames): string {
   if (!provider) return "unknown"
-  const direct = ALIAS_DISPLAY[provider]
-  if (direct) return direct
-  // Some stats keys are provider ids (claude, codex, opencode, kiro…) — those
-  // collide with aliases in most cases, so the table above covers them.
-  return provider
+  if (names && names[provider]) return names[provider]
+  return sanitizeText(provider)
 }
 
 /** Human display name for a routed model id, e.g. `kr/claude-4.5` → "claude-4.5 (Kiro AI)". */
-export function formatModelName(modelID: string): string {
+export function formatModelName(modelID: string, names?: ProviderNames): string {
   const { alias, model } = splitModelID(stripThinkingSuffix(modelID))
-  if (!alias) return model
-  const label = ALIAS_DISPLAY[alias] ?? alias
-  return `${model} (${label})`
+  if (!alias) return sanitizeText(model)
+  return `${sanitizeText(model)} (${providerDisplayName(alias, names)})`
+}
+
+/** Strip control characters (incl. ANSI escapes) from anything rendered to the terminal. */
+// eslint-disable-next-line no-control-regex
+export function sanitizeText(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f-\u009f]/g, "")
 }
 
 // ── Number formatting ───────────────────────────────────────

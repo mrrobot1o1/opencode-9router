@@ -7,16 +7,18 @@ import {
   fetchConnections,
   fetchModelInfo,
   fetchModels,
+  fetchProviderNames,
+  providerNamesFrom,
   type RouterCapabilities,
   type RouterConfig,
   type RouterConnection,
   type RouterModel,
 } from "../shared/router.js"
 import type { ModelLevelOverride } from "../shared/levels.js"
-import { formatModelName } from "../shared/display.js"
+import { formatModelName, sanitizeText, type ProviderNames } from "../shared/display.js"
 import { levelSort, splitModelID, thinkingLevels } from "../shared/levels.js"
 import { ALIAS_TO_PROVIDER } from "./alias.js"
-import { PROVIDER_TO_ALIAS } from "./provider-aliases.js"
+import { PROVIDER_TO_ALIAS } from "../shared/provider-aliases.js"
 
 /** A registered 9Router model ready for provider injection. */
 export interface HubModel {
@@ -133,11 +135,13 @@ export function toModelInfo(
   providerID: string,
   entry: RouterModel,
   overrides?: readonly ModelLevelOverride[],
+  names?: ProviderNames,
 ): Model.Info {
   const base = Model.Info.default(Provider.ID.make(providerID), Model.ID.make(entry.id))
+  const rawName = typeof entry.name === "string" && entry.name.length > 0 ? sanitizeText(entry.name) : ""
   return {
     ...base,
-    name: entry.name ?? formatModelName(entry.id),
+    name: rawName || formatModelName(entry.id, names),
     capabilities: capabilitiesFrom(entry.capabilities),
     limit: limitFrom(entry, entry.capabilities),
     variants: variantsFrom(entry.id, entry.capabilities, overrides),
@@ -151,8 +155,9 @@ export function toModelInfos(
   providerID: string,
   entries: RouterModel[],
   overrides?: readonly ModelLevelOverride[],
+  names?: ProviderNames,
 ): HubModel[] {
-  return entries.map((entry) => ({ id: entry.id, info: toModelInfo(providerID, entry, overrides) }))
+  return entries.map((entry) => ({ id: entry.id, info: toModelInfo(providerID, entry, overrides, names) }))
 }
 
 // ── Discovery ───────────────────────────────────────────────
@@ -168,6 +173,8 @@ export interface DiscoveryResult {
   raw: RouterModel[]
   /** The connections list when reachable — drives the connected-only filter. */
   connections?: RouterConnection[]
+  /** Dynamically resolved provider display names (never hardcoded). */
+  names?: Record<string, string>
 }
 
 /**
@@ -181,16 +188,25 @@ export async function discoverInventory(
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       log("info", `discovery:start attempt=${attempt}`)
-      // Connections drive the connected-providers filter; fetch in parallel.
-      // An unreachable list (e.g. hosted router without a dashboard token)
-      // never filters — the inventory stays complete.
-      const [entries, connections] = await Promise.all([
+      // Connections + provider names drive the filter and display; fetched in
+      // parallel. Unreachable lists (e.g. hosted router without a password)
+      // never filter and names fall back to raw keys.
+      const [entries, connections, usageNames] = await Promise.all([
         fetchModels(config),
         fetchConnections(config).catch((error: unknown) => {
           log("info", `connections unavailable: ${error instanceof Error ? error.message : String(error)}`)
           return undefined
         }),
+        fetchProviderNames(config).catch(() => undefined),
       ])
+      const names =
+        usageNames !== undefined || connections !== undefined
+          ? providerNamesFrom(
+              usageNames ?? {},
+              connections ?? [],
+              (id) => PROVIDER_TO_ALIAS[id] ?? id,
+            )
+          : undefined
       log("info", `discovery:fetch ok (${entries.length} entries, ${connections?.length ?? "unavailable"} connections)`)
       if (entries.length === 0) throw new Error("empty model list")
       const filtered = filterConnected(entries, connections, config.connectedOnly)
@@ -198,9 +214,10 @@ export async function discoverInventory(
         log("info", `discovery:connected-only filter ${entries.length} → ${filtered.length}`)
       }
       const result: DiscoveryResult = {
-        models: toModelInfos("9router", filtered, config.thinkingOverrides),
+        models: toModelInfos("9router", filtered, config.thinkingOverrides, names),
         raw: entries,
         ...(connections !== undefined ? { connections } : {}),
+        ...(names !== undefined ? { names } : {}),
       }
       log("info", `discovery:mapped ${result.models.length} models`)
       return result

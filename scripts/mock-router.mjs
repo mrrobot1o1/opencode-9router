@@ -135,6 +135,18 @@ createServer((req, res) => {
     return
   }
 
+  if (url.pathname === "/api/usage/providers") {
+    // Needs the session cookie like the other /api routes.
+    const cookie = req.headers.cookie ?? ""
+    if (!cookie.includes("auth_token=") || !cookie.includes(MOCK_SESSION)) return send(401, { error: "Unauthorized" })
+    return send(200, {
+      providers: [
+        { id: "kiro", name: "Kiro\u0007AI" },
+        { id: "openai-compatible-chat-xyz", name: "AG gateway" },
+      ],
+    })
+  }
+
   if (url.pathname === "/api/providers") {
     // Guarded like a hosted router: needs the dashboard session cookie.
     const cookie = req.headers.cookie ?? ""
@@ -142,8 +154,8 @@ createServer((req, res) => {
     if (!cookie.includes(MOCK_SESSION)) return send(401, { error: "Unauthorized" })
     return send(200, {
       connections: [
-        { id: "c1", provider: "openai-compatible-chat-xyz", name: "AG gateway", isActive: true, providerSpecificData: { prefix: "ag" } },
-        { id: "c2", provider: "kiro", name: "Kiro free", isActive: true },
+        { id: "c1", provider: "openai-compatible-chat-xyz", name: "AG gateway", isActive: true, providerSpecificData: { prefix: "ag", nodeName: "AG's \"gateway\" & friends" } },
+        { id: "c2", provider: "kiro", name: "Account 1", isActive: true },
         { id: "c3", provider: "opencode", name: "stale", isActive: false },
       ],
     })

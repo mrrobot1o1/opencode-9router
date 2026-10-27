@@ -5,7 +5,7 @@
 
 import type { Plugin } from "@opencode/plugin/tui"
 import { levelLabel, splitModelID, stripThinkingSuffix } from "../shared/levels.js"
-import { formatCost, formatTokens, providerDisplayName } from "../shared/display.js"
+import { formatCost, formatTokens } from "../shared/display.js"
 import type { UsageStore } from "./store"
 
 interface UsageEntry {
@@ -30,7 +30,7 @@ function usageLookup(store: UsageStore): Map<string, UsageEntry> {
     const match = key.match(/^(.*) \((.*)\)$/)
     const raw = usage.rawModel ?? (match ? match[1]! : key)
     const provider = usage.provider ?? (match ? match[2]! : "")
-    const canonical = `${providerDisplayName(provider)}:${raw}`.toLowerCase()
+    const canonical = `${store.providerName(provider)}:${raw}`.toLowerCase()
     if (!entries.has(canonical)) {
       entries.set(canonical, {
         tokens: formatTokens(usage.promptTokens + usage.completionTokens),
@@ -42,9 +42,13 @@ function usageLookup(store: UsageStore): Map<string, UsageEntry> {
   return entries
 }
 
-function annotate(model: { id: string; variants?: ReadonlyArray<{ id: string }> }, lookup: Map<string, UsageEntry>): string | undefined {
+function annotate(
+  model: { id: string; variants?: ReadonlyArray<{ id: string }> },
+  lookup: Map<string, UsageEntry>,
+  providerName: (key: string) => string,
+): string | undefined {
   const { alias, model: raw } = splitModelID(stripThinkingSuffix(model.id))
-  const usage = lookup.get(`${providerDisplayName(alias)}:${raw}`.toLowerCase())
+  const usage = lookup.get(`${providerName(alias)}:${raw}`.toLowerCase())
   const parts: string[] = []
   if (usage) parts.push(`${usage.tokens} tok`, usage.cost, `${usage.requests} req`)
   const levels = (model.variants ?? []).map((variant) => String(variant.id))
@@ -87,8 +91,8 @@ export async function openModelPicker(context: Plugin.Context, store: UsageStore
     model,
     value: `${model.providerID}/${model.id}`,
     title: model.name ?? model.id,
-    description: annotate(model, lookup),
-    category: providerDisplayName(model.id.includes("/") ? model.id.slice(0, model.id.indexOf("/")) : ""),
+    description: annotate(model, lookup, (key) => store.providerName(key)),
+    category: store.providerName(model.id.includes("/") ? model.id.slice(0, model.id.indexOf("/")) : ""),
     footer: `${model.providerID}/${model.id}` === active ? "current" : undefined,
   }))
   options.sort((a, b) => a.category.localeCompare(b.category) || a.title.localeCompare(b.title))
