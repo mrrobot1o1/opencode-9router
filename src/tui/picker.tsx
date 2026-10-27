@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 // Model picker for the TUI part: browse every registered 9Router model with
 // usage annotations, then pick a thinking level from the levels THAT model
 // actually serves (registered variants — guaranteed valid end-to-end), and

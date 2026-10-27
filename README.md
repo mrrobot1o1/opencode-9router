@@ -25,38 +25,44 @@ terminal UI.
 
 ## Install
 
-**From npm:**
+```bash
+opencode plugin add opencode-9hub
+```
+
+Then edit your global config — `~/.config/opencode/opencode.jsonc` — to point it at your
+9Router (replace the string entry with an object and fill in your values):
 
 ```jsonc
-// ~/.config/opencode/opencode.jsonc (global) or opencode.jsonc (project)
 {
+  "$schema": "https://opencode.ai/config.json",
   "plugins": [{
     "package": "opencode-9hub",
     "options": {
-      "baseURL": "http://localhost:20128",   // your 9Router
-      "apiKey": "sk-…"
+      "baseURL": "http://localhost:20128",        // your 9Router URL
+      "apiKey": "sk-your-router-api-key",          // from the 9Router dashboard
+      "password": "your-dashboard-password"        // optional — see below
     }
   }]
 }
 ```
 
-**From GitHub (development):**
+Restart OpenCode (TUI-side features need a full restart, not just `/reload`). Until `baseURL`
+is set, the sidebar shows setup guidance and the plugin stays inert — nothing is guessed.
+
+**Development (from a clone):**
 
 ```bash
-git clone https://github.com/mrrobot1o1/opencode-9hub.git ~/.config/opencode/opencode-9hub
+git clone https://github.com/mrrobot1o1/opencode-9hub.git
 ```
 
 ```jsonc
 {
   "plugins": [{
-    // absolute path (the config does not expand ~)
-    "package": "/home/you/.config/opencode/opencode-9hub",
+    "package": "/absolute/path/to/opencode-9hub",   // the config does not expand ~
     "options": { "baseURL": "http://localhost:20128", "apiKey": "sk-…" }
   }]
 }
 ```
-
-Then restart OpenCode (TUI-side changes need a full restart, not just `/reload`).
 
 Environment: `OPENCODE_9ROUTER_URL` and `OPENCODE_9ROUTER_API_KEY` work as fallbacks for
 `baseURL`/`apiKey`. A `baseURL` (option or env) is **required**: the plugin never guesses —

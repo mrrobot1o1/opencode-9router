@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 // "9Router Usage" section for the session sidebar (the panel that already
 // shows the Context bar). Renders per-provider usage rows with share bars,
 // totals, active requests, and a period toggle — fed by the usage store.
@@ -148,7 +149,7 @@ export function SidebarUsage(props: { context: Plugin.Context; store: UsageStore
   }
 
   return (
-    <Show when={rows().length > 0 || status() !== "offline"}>
+    <Show when={rows().length > 0 || status() !== "offline" || !props.store.configured()}>
       <ErrorBoundary fallback={crash}>
       <box>
         <box onMouseUp={() => props.store.toggleCollapsed()} flexShrink={0}>
@@ -161,6 +162,15 @@ export function SidebarUsage(props: { context: Plugin.Context; store: UsageStore
             </span>
           </text>
         </box>
+        <Show when={!props.store.configured()}>
+          <text fg={theme.text.muted} wrapMode="none">
+            not configured — edit ~/.config/opencode/opencode.jsonc:
+          </text>
+          <text fg={theme.text.muted} wrapMode="none">
+            options.baseURL + apiKey (password optional)
+          </text>
+        </Show>
+        <Show when={props.store.configured()}>
         <Show when={!props.store.collapsed()}>
           <text fg={theme.text.muted} wrapMode="none">
             {fallback() ? "this session" : periodLabel(props.store.period())} ·{" "}
@@ -196,6 +206,7 @@ export function SidebarUsage(props: { context: Plugin.Context; store: UsageStore
           <text fg={theme.text.muted} wrapMode="none">
             {totals() ?? "no data yet"}
           </text>
+        </Show>
         </Show>
       </box>
       </ErrorBoundary>

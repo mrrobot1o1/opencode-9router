@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 // OpenCode V2 TUI part — usage sidebar, model picker, and commands.
 //
 // Configured like any plugin package (opencode.json(c) `plugins`); the CLI

@@ -39,6 +39,8 @@ export interface UsageStore {
   /** Number of models currently registered by the server part (0 = not ready). */
   modelCount(): number
   setModelCount(count: number): void
+  /** False when no baseURL is configured — the sidebar shows setup guidance. */
+  configured(): boolean
   /** Dynamically resolved provider display names (id or alias → name). */
   providerName(key: string): string
   /** Stops the SSE subscription and pending fetches. */
@@ -182,6 +184,7 @@ export async function createUsageStore(context: Plugin.Context): Promise<UsageSt
     toggleCollapsed,
     modelCount,
     setModelCount,
+    configured: () => configured,
     providerName,
     stop: () => subscription?.stop(),
     restart: () => {
