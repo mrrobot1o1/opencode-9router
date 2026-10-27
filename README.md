@@ -13,10 +13,7 @@ terminal UI.
  ● 1 running
 ```
 
-Unlike the existing provider-registration plugins
-([vheins/opencode-9router](https://github.com/vheins/opencode-9router),
-[mdhb2/opencode-9router-plugin](https://github.com/mdhb2/opencode-9router-plugin)), 9hub is a
-**two-part plugin**:
+9hub is a **two-part plugin**:
 
 - **Server part** (`.`) — registers the `9router` provider and injects every routed model with
   capabilities, token limits, and **thinking variants aligned to what each model actually
@@ -233,12 +230,11 @@ src/
     display.ts        naming/formatting
 ```
 
-## Roadmap
+## Planned
 
-- [ ] Add-provider dialog (`POST /api/providers` for key/free providers; OAuth → dashboard deep-link)
-- [ ] Fullscreen usage dashboard (`session.panel`): byModel / byAccount tables
-- [ ] Model detail view: context window, cost, capabilities
-- [ ] Publish to npm
+- Add-provider dialog (`POST /api/providers` for key/free providers; OAuth → dashboard deep-link)
+- Fullscreen usage dashboard (`session.panel`): byModel / byAccount tables
+- Model detail view: context window, cost, capabilities
 
 ## License
 
