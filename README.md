@@ -135,7 +135,7 @@ public endpoint so every client can filter without credentials.)
 
 Restart OpenCode, then:
 
-- `/models` → pick any `9router/…` model (they are registered automatically), or use **`/9hub`**
+- pick any `9router/…` model in the model switcher (they are registered automatically), or use **`/9hub`**
 - watch the sidebar for **9Router Usage**
 - `/9usage` switches the usage period (today / 24h / 7d / 30d / 60d / all)
 
@@ -210,23 +210,20 @@ selection can never produce an unknown-variant failure on the next prompt.
 ## Development
 
 ```sh
+git clone https://github.com/mrrobot1o1/opencode-9hub.git
+cd opencode-9hub
 npm install
 npm run check          # typecheck
-npm run mock           # mock 9router on :20128 (mutating stats, SSE)
-node scripts/mock-router.mjs 20129   # custom port
+npm run mock           # mock 9router on :20128 (mutating stats, SSE, guarded /api)
 ```
 
-Local dev against a real OpenCode install — point your config at this directory:
+Point a local OpenCode at the clone (see the development snippet under Install), restart the
+TUI, and `/9hub` lists the mock inventory. `OPENCODE_9HUB_DEBUG=<file>` appends diagnostics
+from both parts — plugin console output is invisible in `--print-logs`.
 
-```jsonc
-{ "plugins": ["/absolute/path/to/opencode-9hub"] }
-```
-
-or symlink it into `.opencode/plugins/opencode-9hub`. `opencode models 9router --print-logs`
-shows discovery logs; the TUI part needs a running `opencode` TUI session.
-
-The API key/URL above also work against hosted 9Router instances; note hosted instances
-usually guard `/api/*` behind login, so the sidebar falls back to session usage there.
+Hosted routers: the same `baseURL`/`apiKey` work for `/v1/*`; add `password` (dashboard
+password, the official `npx 9router connect` flow) to unlock `/api/*` — connected-providers
+filtering and router-wide usage stats.
 
 ## Architecture
 
@@ -234,17 +231,20 @@ usually guard `/api/*` behind login, so the sidebar falls back to session usage 
 src/
   index.ts            server part: Plugin.define → provider/model transforms + refresh loop
   server/
-    register.ts       /v1/models → Model.Info (caps, limits, variants)
-    alias.ts          alias → 9Router provider id (for pattern overrides)
+    register.ts       /v1/models → Model.Info (caps, limits, variants, names)
+    alias.ts          alias → 9Router provider id (scopes thinkingOverrides)
   tui.tsx             TUI part: sidebar slot + commands
   tui/
-    store.ts          usage store (period fetch + SSE, persisted prefs)
-    sidebar.tsx       "9Router Usage" sidebar section (+ session fallback)
+    store.ts          usage store (period fetch + SSE, persisted prefs, manual reconnect)
+    sidebar.tsx       "9Router Usage" sidebar section (+ session fallback, crash boundary)
     picker.tsx        /9hub model + thinking-level dialogs → session.switchModel
+    config-source.ts  TUI options self-serve (the relay drops options → read config from disk)
+    debug.ts          OPENCODE_9HUB_DEBUG file sink
   shared/
-    router.ts         9Router client (CLI token, /v1 + /api, SSE)
-    levels.ts         thinking-level resolver (mirror of 9Router's)
-    display.ts        naming/formatting
+    router.ts         9Router client (/v1 + /api, optional dashboard login, SSE)
+    levels.ts         capability-driven thinking-level resolver (+ user overrides)
+    display.ts        dynamic provider names, token/cost formatting
+    provider-aliases.ts  provider id → output alias (registry-derived wire vocabulary)
 ```
 
 ## Planned
